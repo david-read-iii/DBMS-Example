@@ -1,0 +1,5 @@
+<resources>
+    <dimen name="activity_padding">16dp</dimen>
+    <dimen name="listview_item_padding">16dp</dimen>
+    <dimen name="spinner_vertical_padding">20dp</dimen>
+</resources>
