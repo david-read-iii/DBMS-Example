@@ -1,4 +1,4 @@
-package com.read.dbmsexample;
+package com.read.dbmsexample.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,30 +11,38 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.read.dbmsexample.Firebase.UsersChildEventListener;
+import com.read.dbmsexample.Firebase.UsersFirebaseHelper;
+import com.read.dbmsexample.R;
+import com.read.dbmsexample.Models.User;
+
 public class ModifyUserActivity extends AppCompatActivity {
 
     private User selected;
+    private DatabaseReference databaseReference;
+    private UsersChildEventListener childEventListener;
     private EditText editTextFirstName, editTextLastName, editTextUsername, editTextPassword;
     private Spinner spinnerRole;
     private Button buttonDelete, buttonSave;
-    private FirebaseHelper firebaseHelper = new FirebaseHelper();
-    private Boolean deleted, modified;
+    private int deleted, modified;
 
     /**
-     * Start an activity with several EditTexts, a Spinner, and Buttons when this activity is
-     * created. The User selected will represent the User that the user clicked on to get to this
-     * activity. The EditTexts will allow the user to specify new attributes for User selected, the
-     * Button buttonSave will allow the user to confirm the modification of User selected in the
-     * database, and the Button buttonDelete will allow the user to delete User selected from the
-     * database.
+     * When this activity is created, inflate a layout with several EditTexts, a Spinner, and
+     * Buttons. The User object selected will represent the User that the user clicked on to get to
+     * this activity. The EditTexts will allow the user to specify new attributes for the selected
+     * User object, the Button buttonSave will allow the user to confirm the modification of the
+     * selected User object in the database, and the Button buttonDelete will allow the user to
+     * delete the selected User object from the database. A UsersChildEventListener will be setup to
+     * close this activity when the selected User object is changed by another user in the database.
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_modify_user);
 
-        /* Receive the attributes of the clicked User and set them as attributes of a temporary
-         * User selected. */
+        // Receive the attributes of the selected User object.
         Intent intent = getIntent();
 
         selected = new User(
@@ -43,11 +51,15 @@ public class ModifyUserActivity extends AppCompatActivity {
                 intent.getStringExtra("lastName"),
                 intent.getStringExtra("username"),
                 intent.getStringExtra("password"),
-                intent.getStringExtra("role"));
+                intent.getStringExtra("role")
+        );
 
-        /* Start listening for the changing of User selected in the database. If User selected is
-         * changed, close this activity. */
-        firebaseHelper.startListeningForChangedUser(this, selected);
+        // Initialize DatabaseReference and UsersChildEventListener.
+        databaseReference = FirebaseDatabase.getInstance().getReference();
+        childEventListener = new UsersChildEventListener(this);
+
+        // Attach UsersChildEventListener to the selected User object in the database.
+        databaseReference.child("Users").child(selected.getKey()).addChildEventListener(childEventListener);
 
         // Bring XML elements to Java.
         editTextFirstName = findViewById(R.id.edittext_modify_first_name);
@@ -58,31 +70,30 @@ public class ModifyUserActivity extends AppCompatActivity {
         buttonDelete = findViewById(R.id.button_delete);
         buttonSave = findViewById(R.id.button_save);
 
-        // Attach ArrayAdapter to Spinner.
+        // Define and attach ArrayAdapter to Spinner.
         ArrayAdapter<CharSequence> spinnerAdapter = ArrayAdapter.createFromResource(this, R.array.spinner_options, android.R.layout.simple_spinner_item);
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRole.setAdapter(spinnerAdapter);
 
-        // Set the EditText values as the attributes of the User selected.
+        // Set the EditText values as the attributes of the selected User object.
         editTextFirstName.setText(selected.getFirstName());
         editTextLastName.setText(selected.getLastName());
         editTextUsername.setText(selected.getUsername());
         editTextPassword.setText(selected.getPassword());
         spinnerRole.setSelection(spinnerAdapter.getPosition(selected.getRole()));
 
-        /* Attach a click listener to buttonDelete to delete the User selected from the database.
-         * Print a Toast indicating the status of the deletion. */
+        // Attach a click listener to buttonDelete.
         buttonDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Detach this database listener.
-                firebaseHelper.stopListeningForChangedUser();
+                // Detach UsersChildEventListener.
+                databaseReference.child("Users").child(selected.getKey()).removeEventListener(childEventListener);
 
-                // Delete User selected from the database.
-                deleted = firebaseHelper.delete(selected);
+                // Delete the selected User object from the database.
+                deleted = UsersFirebaseHelper.delete(selected);
 
                 // Print Toast indicating status of the deletion.
-                if (deleted) {
+                if (deleted == 0) {
                     Toast.makeText(ModifyUserActivity.this, R.string.toast_delete_successful, Toast.LENGTH_SHORT).show();
                 } else {
                     Toast.makeText(ModifyUserActivity.this, R.string.toast_delete_failed, Toast.LENGTH_SHORT).show();
@@ -93,46 +104,49 @@ public class ModifyUserActivity extends AppCompatActivity {
             }
         });
 
-        /* Attach a click listener to buttonSave to modify the User selected in the database with
-         * the attributes specified in the EditTexts. Print a Toast indicating the status of the
-         * modification. */
+        // Attach a click listener to buttonSave.
         buttonSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Detach this database listener.
-                firebaseHelper.stopListeningForChangedUser();
+                // Detach UsersChildEventListener.
+                databaseReference.child("Users").child(selected.getKey()).removeEventListener(childEventListener);
 
                 // Modify User selected in the database with the attributes specified in this new User.
-                modified = firebaseHelper.modify(selected, new User(
-                        selected.getKey(),
+                modified = UsersFirebaseHelper.modify(selected, new User(
                         editTextFirstName.getText().toString(),
                         editTextLastName.getText().toString(),
                         editTextUsername.getText().toString(),
                         editTextPassword.getText().toString(),
-                        spinnerRole.getSelectedItem().toString()));
+                        spinnerRole.getSelectedItem().toString())
+                );
 
-                // Print Toast indicating status of the modification.
-                if (modified) {
+                // Depending on the status of the modification, print a Toast and take an action.
+                if (modified == 0) {
+                    // Modification successful. Close this activity.
                     Toast.makeText(ModifyUserActivity.this, R.string.toast_modify_successful, Toast.LENGTH_SHORT).show();
+                    finish();
+                } else if (modified == 2) {
+                    // Modification failed due to invalid attributes. Reattach UsersChildEventListener.
+                    Toast.makeText(ModifyUserActivity.this, R.string.toast_invalid, Toast.LENGTH_SHORT).show();
+                    databaseReference.child("Users").child(selected.getKey()).addChildEventListener(childEventListener);
                 } else {
+                    // Modification failed due to database error. Close this activity.
                     Toast.makeText(ModifyUserActivity.this, R.string.toast_modify_failed, Toast.LENGTH_SHORT).show();
+                    finish();
                 }
-
-                // Close this activity.
-                finish();
             }
         });
     }
 
     /**
-     * Close this activity when this activity is not in the foreground.
+     * When this activity leaves the foreground, close this activity.
      */
     @Override
     protected void onPause() {
         super.onPause();
 
-        // Detach this database listener.
-        firebaseHelper.stopListeningForChangedUser();
+        // Detach UsersChildEventListener.
+        databaseReference.child("Users").child(selected.getKey()).removeEventListener(childEventListener);
 
         // Close this activity.
         finish();

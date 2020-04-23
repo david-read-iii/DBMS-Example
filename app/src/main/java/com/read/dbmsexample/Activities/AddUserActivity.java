@@ -1,8 +1,7 @@
-package com.read.dbmsexample;
+package com.read.dbmsexample.Activities;
 
 import android.os.Bundle;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -11,18 +10,21 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.read.dbmsexample.Firebase.UsersFirebaseHelper;
+import com.read.dbmsexample.R;
+import com.read.dbmsexample.Models.User;
+
 public class AddUserActivity extends AppCompatActivity {
 
     private EditText editTextFirstName, editTextLastName, editTextUsername, editTextPassword;
     private Spinner spinnerRole;
     private Button buttonAdd;
-    private Boolean saved;
-    private FirebaseHelper firebaseHelper = new FirebaseHelper();
+    private int saved;
 
     /**
-     * Start an activity with several EditTexts, a Spinner, and a Button when this activity is
-     * created. The EditTexts and Spinner will allow the user to specify the attributes of a new
-     * User and the Button will allow the user to confirm the addition of the User into the database.
+     * When this activity is created, inflate a layout with several EditTexts, a Spinner, and a
+     * Button. The EditTexts and Spinner will allow the user to specify the attributes of a new
+     * User and the Button will allow the user to confirm the saving of the User into the database.
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,28 +44,32 @@ public class AddUserActivity extends AppCompatActivity {
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRole.setAdapter(spinnerAdapter);
 
-        /* Attach a click listener to buttonAdd to add a new User to the database with the
-         * attributes specified in the EditTexts. Print a Toast indicating the status of the save. */
+        // Attach a click listener to buttonAdd.
         buttonAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Save User with specified attributes to the database.
-                saved = firebaseHelper.save(new User(
+                // Save a User object with the specified attributes to the database.
+                saved = UsersFirebaseHelper.save(new User(
                         editTextFirstName.getText().toString(),
                         editTextLastName.getText().toString(),
                         editTextUsername.getText().toString(),
                         editTextPassword.getText().toString(),
-                        spinnerRole.getSelectedItem().toString()));
+                        spinnerRole.getSelectedItem().toString())
+                );
 
-                // Print Toast indicating status of the deletion.
-                if (saved) {
+                // Depending on the status of the save, print a Toast and take an action.
+                if (saved == 0) {
+                    // Save successful. Close this activity.
                     Toast.makeText(AddUserActivity.this, R.string.toast_add_successful, Toast.LENGTH_SHORT).show();
-                } else {
+                    finish();
+                } else if (saved == 1) {
+                    // Save failed due to database error. Close this activity.
                     Toast.makeText(AddUserActivity.this, R.string.toast_add_failed, Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+                    // Save failed due to invalid attributes.
+                    Toast.makeText(AddUserActivity.this, R.string.toast_invalid, Toast.LENGTH_SHORT).show();
                 }
-
-                // Close this activity.
-                finish();
             }
         });
     }

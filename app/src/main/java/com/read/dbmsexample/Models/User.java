@@ -1,4 +1,4 @@
-package com.read.dbmsexample;
+package com.read.dbmsexample.Models;
 
 public class User {
 
@@ -25,7 +25,6 @@ public class User {
      * @param role      The role of the User.
      */
     public User(String firstName, String lastName, String username, String password, String role) {
-        this.key = null;
         this.firstName = firstName;
         this.lastName = lastName;
         this.username = username;
